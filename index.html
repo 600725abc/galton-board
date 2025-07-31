@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Galton Board Simulation (Normal Distribution)</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background-color: #f0f0f0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      height: 100vh;
+      font-family: sans-serif;
+    }
+    #simulation-container {
+      border: 1px solid #333;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    .button-container {
+      margin-top: 20px;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      margin: 0 10px;
+    }
+    #drop-button {
+      background-color: #4CAF50;
+      color: white;
+      border-color: #4CAF50;
+    }
+    #reset-button {
+      background-color: #f44336;
+      color: white;
+      border-color: #f44336;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="simulation-container"></div>
+  <div class="button-container">
+    <button id="drop-button">Drop Handful of Balls</button>
+    <button id="reset-button">Reset</button>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.18.0/matter.min.js"></script>
+  <script>
+    // Module aliases
+    var Engine = Matter.Engine,
+        Render = Matter.Render,
+        Runner = Matter.Runner,
+        Bodies = Matter.Bodies,
+        Composite = Matter.Composite,
+        World = Matter.World;
+
+    // Create an engine
+    var engine = Engine.create();
+    var world = engine.world;
+
+    // Get the container element
+    var container = document.getElementById('simulation-container');
+
+    // Create a renderer
+    var render = Render.create({
+        element: container,
+        engine: engine,
+        options: {
+            width: 800,
+            height: 600,
+            wireframes: false,
+            background: '#ffffff'
+        }
+    });
+
+    // Run the renderer
+    Render.run(render);
+
+    // Create and run a runner
+    var runner = Runner.create();
+    Runner.run(runner, engine);
+
+    // --- Static World Objects ---
+    const staticObjects = [];
+
+    // Board properties
+    var worldWidth = 800;
+    var worldHeight = 600;
+    var pegSize = 5;
+    var pegRows = 12;
+    var pegCols = 15;
+    var pegXSpacing = 40;
+    var pegYSpacing = 30;
+    var startX = (worldWidth - (pegCols - 1) * pegXSpacing) / 2;
+    var startY = 100;
+
+    // Add pegs
+    for (var row = 0; row < pegRows; row++) {
+        for (var col = 0; col < pegCols + 1; col++) {
+            var x = startX + col * pegXSpacing;
+            if (row % 2 === 1) {
+                x -= pegXSpacing / 2;
+            }
+            if(col < pegCols || (row % 2 === 0 && col === pegCols)) {
+                 if (!(row % 2 === 1 && col === 0)) {
+                    var peg = Bodies.circle(x, startY + row * pegYSpacing, pegSize, {
+                        isStatic: true,
+                        restitution: 0.5,
+                        render: {
+                            fillStyle: '#555'
+                        }
+                    });
+                    staticObjects.push(peg);
+                 }
+            }
+        }
+    }
+
+    // Add side walls and floor
+    var wallThickness = 20;
+    staticObjects.push(Bodies.rectangle(wallThickness / 2, worldHeight / 2, wallThickness, worldHeight, { isStatic: true, render: { visible: false } }));
+    staticObjects.push(Bodies.rectangle(worldWidth - wallThickness / 2, worldHeight / 2, wallThickness, worldHeight, { isStatic: true, render: { visible: false } }));
+    staticObjects.push(Bodies.rectangle(worldWidth / 2, worldHeight - wallThickness / 2, worldWidth, wallThickness, { isStatic: true, render: { visible: false } }));
+    
+    // Add funneling edges to the top
+    var funnelWallLeft = Bodies.rectangle(worldWidth / 2 - 150, 50, 300, 10, {
+        isStatic: true,
+        angle: Math.PI * -0.15, 
+        render: { fillStyle: '#333' }
+    });
+    var funnelWallRight = Bodies.rectangle(worldWidth / 2 + 150, 50, 300, 10, {
+        isStatic: true,
+        angle: Math.PI * 0.15,
+        render: { fillStyle: '#333' }
+    });
+    staticObjects.push(funnelWallLeft, funnelWallRight);
+
+    // Add dividers at the bottom
+    var dividerHeight = 80;
+    var dividerThickness = 10;
+    var numDividers = pegCols + 1;
+    var dividerSpacing = pegXSpacing; 
+    var dividerStartX = startX - (pegXSpacing/2);
+
+    for (var i = 0; i < numDividers; i++) {
+        var divider = Bodies.rectangle(
+            dividerStartX + i * dividerSpacing,
+            worldHeight - dividerHeight / 2,
+            dividerThickness,
+            dividerHeight, {
+                isStatic: true,
+                render: {
+                    fillStyle: '#333'
+                }
+            }
+        );
+        staticObjects.push(divider);
+    }
+    
+    World.add(world, staticObjects);
+
+    // --- Ball Dropping Logic ---
+
+    // Function to drop a handful of balls
+    function dropHandfulOfBalls() {
+        const numBalls = 30; // Number of balls in a "handful"
+        const dropInterval = 100; // Milliseconds between each ball drop
+
+        for (let i = 0; i < numBalls; i++) {
+            setTimeout(() => {
+                const ball = Bodies.circle(
+                    worldWidth / 2 + (Math.random() - 0.5) * 20, // Slight random x-offset
+                    20, // Starting y position
+                    8, // Ball radius
+                    {
+                        restitution: 0.6, // How bouncy the ball is
+                        friction: 0.01,   // Air friction
+                        render: {
+                            fillStyle: `hsl(${Math.random() * 360}, 100%, 50%)`
+                        }
+                    }
+                );
+                World.add(world, ball);
+            }, i * dropInterval);
+        }
+    }
+
+    // --- Reset Logic ---
+    function resetSimulation() {
+        // Get all non-static bodies (the balls)
+        const allBodies = Composite.allBodies(world);
+        const balls = allBodies.filter(body => !body.isStatic);
+        
+        // Remove them from the world
+        World.remove(world, balls);
+    }
+
+    // --- Event Listeners ---
+    document.getElementById('drop-button').addEventListener('click', dropHandfulOfBalls);
+    document.getElementById('reset-button').addEventListener('click', resetSimulation);
+
+  </script>
+
+</body>
+</html>
